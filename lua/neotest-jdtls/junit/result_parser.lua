@@ -126,7 +126,7 @@ function JunitTestParser._split(str)
 	return result
 end
 
-function JunitTestParser:_map_to_neotest_result_item(item)
+function JunitTestParser:_map_to_neotest_result_item(key, item)
 	-- if item.result == nil then
 	-- 	log.error('item', vim.inspect(item))
 	-- 	-- return {
@@ -137,10 +137,22 @@ function JunitTestParser:_map_to_neotest_result_item(item)
 		local results_path = async.fn.tempname()
 		lib.files.write(results_path, table.concat(item.result.trace, '\n'))
 		local short_message = get_short_error_message(item.result)
+		local test_file_name = key:match('([^/\\]+%.java)::')
+		local line_number = nil
+
+		if test_file_name then
+			for _, line in ipairs(item.result.trace) do
+				local file, line_str = line:match('%(([%w%._/-]+%.java):(%d+)%)')
+				if file and line_str and file:match(test_file_name, 1, true) then
+					line_number = tonumber(line_str) - 1 -- 0-based for Neotest
+					break
+				end
+			end
+		end
 		return {
 			status = TestStatus.Failed,
 			errors = {
-				{ message = short_message },
+				{ message = short_message, line = line_number },
 			},
 			output = results_path,
 			short = short_message,
@@ -474,7 +486,7 @@ function JunitTestParser:get_mapped_result()
 		if v.is_dynamic_test then
 			data = v:get_neotest_result()
 		else
-			data = self:_map_to_neotest_result_item(v)
+			data = self:_map_to_neotest_result_item(k, v)
 		end
 		result[k] = data
 	end
