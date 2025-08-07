@@ -331,7 +331,8 @@ function JunitTestParser:parse_test_end_junit5(node)
 			vim.inspect(node)
 		)
 	else
-		local test_item = self.context.lookup[id]
+		normalize_id = id:gsub('^%s+', ''):gsub('%s+$', '')
+		local test_item = self.context.lookup[normalize_id]
 		if invocation and invocation ~= '' then
 			if not self.results[test_item.key] then
 				assert(node.is_dynamic_test)

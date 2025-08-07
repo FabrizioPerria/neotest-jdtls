@@ -12,7 +12,8 @@ end
 
 ---@param test_item JavaTestItem
 function TestContext:append_test_item(key, test_item)
-	self.lookup[test_item.id] = { key = key, value = test_item }
+	normalize_id = test_item.id:gsub('%s+', '')
+	self.lookup[normalize_id] = { key = key, value = test_item }
 end
 
 return TestContext
