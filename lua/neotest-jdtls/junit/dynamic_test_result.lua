@@ -1,7 +1,9 @@
 local class = require('neotest-jdtls.utils.class')
 local get_short_error_message =
 	require('neotest-jdtls.junit.common').get_short_error_message
+local get_line_number = require('neotest-jdtls.junit.common').get_line_number
 local lib = require('neotest.lib')
+local log = require('neotest-jdtls.utils.log')
 local async = require('neotest.async')
 local TestStatus = require('neotest-jdtls.types.enums').TestStatus
 
@@ -25,11 +27,11 @@ function DynamicTestResult:append_invocation(invocation, node)
 	self.invocation_lookup[invocation] = node
 end
 
-function DynamicTestResult:get_neotest_result()
+function DynamicTestResult:get_neotest_result(key)
 	local sum = 0
 	for invocation, node in pairs(self.invocation_lookup) do
 		sum = sum + 1
-		self:append(invocation, node)
+		self:append(invocation, node, key)
 	end
 	local results_path = async.fn.tempname()
 
@@ -48,10 +50,11 @@ function DynamicTestResult:get_neotest_result()
 		status = self.status,
 		output = results_path,
 		errors = self.errors,
+		short = self.errors,
 	}
 end
 
-function DynamicTestResult:append(invocation, node)
+function DynamicTestResult:append(invocation, node, key)
 	table.insert(
 		self.output,
 		string.format(
@@ -67,9 +70,25 @@ function DynamicTestResult:append(invocation, node)
 
 	if node.result.status == TestStatus.Failed then
 		local short_message = get_short_error_message(node.result)
+		-- if short_message is a table, convert it to a string
+		if type(short_message) == 'table' then
+			short_message = table.concat(short_message, '\n')
+		end
 		self.status = TestStatus.Failed
-		table.insert(self.errors, { message = short_message })
-		table.insert(self.output, table.concat(node.result.trace, '\n'))
+		local line_number = get_line_number(key, node.result.trace)
+		table.insert(
+			self.errors,
+			{ message = short_message, line = line_number - 1 }
+		)
+		table.insert(
+			self.output,
+			string.format(
+				'[line %s]: %s', --\n%s',
+				tostring(line_number - 1),
+				short_message
+				--,table.concat(node.result.trace, '\n') or 'No stack trace available.'
+			)
+		)
 	else
 		if self.status == nil then
 			self.status = TestStatus.Passed

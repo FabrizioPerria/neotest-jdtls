@@ -7,6 +7,7 @@ local TestKind = require('neotest-jdtls.types.enums').TestKind
 local DynamicTestResult = require('neotest-jdtls.junit.dynamic_test_result')
 local get_short_error_message =
 	require('neotest-jdtls.junit.common').get_short_error_message
+local get_line_number = require('neotest-jdtls.junit.common').get_line_number
 local BaseParser = require('neotest-jdtls.utils.base_parser')
 
 local default_passed_test_output =
@@ -135,24 +136,15 @@ function JunitTestParser:_map_to_neotest_result_item(key, item)
 	-- end
 	if item.result.status == TestStatus.Failed then
 		local results_path = async.fn.tempname()
-		lib.files.write(results_path, table.concat(item.result.trace, '\n'))
+		local line_number = get_line_number(key, item.result.trace)
 		local short_message = get_short_error_message(item.result)
-		local test_file_name = key:match('([^/\\]+%.java)::')
-		local line_number = nil
+		short_message = '[line ' .. line_number .. ']: ' .. short_message
+		lib.files.write(results_path, short_message)
 
-		if test_file_name then
-			for _, line in ipairs(item.result.trace) do
-				local file, line_str = line:match('%(([%w%._/-]+%.java):(%d+)%)')
-				if file and line_str and file:match(test_file_name, 1, true) then
-					line_number = tonumber(line_str) - 1 -- 0-based for Neotest
-					break
-				end
-			end
-		end
 		return {
 			status = TestStatus.Failed,
 			errors = {
-				{ message = short_message, line = line_number },
+				{ message = short_message, line = line_number - 1 },
 			},
 			output = results_path,
 			short = short_message,
@@ -384,6 +376,11 @@ function JunitTestParser:parse_test_failed(data, line_iter)
 	local node = self:find_result_node(test_id)
 	assert(node)
 
+	if not node.result then
+		-- this is the parent result
+		return
+	end
+
 	node.result.status = TestStatus.Failed
 
 	while true do
@@ -485,7 +482,8 @@ function JunitTestParser:get_mapped_result()
 	for k, v in pairs(self.results) do
 		local data
 		if v.is_dynamic_test then
-			data = v:get_neotest_result()
+			log.error('Dynamic test result for %s', vim.inspect(k))
+			data = v:get_neotest_result(k)
 		else
 			data = self:_map_to_neotest_result_item(k, v)
 		end
