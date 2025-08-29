@@ -63,7 +63,7 @@ local function load_current_project()
 	log.debug('Project cache loading')
 	local root = jdtls.root_dir()
 	local project = jdtls.find_java_projects(root)
-	assert(#project == 1, 'Multimodule projects currently not supported')
+	-- assert(#project == 1, 'Multimodule projects currently not supported')
 	local jdtHandler = project[1].jdtHandler
 	local cache =
 		ProjectCache(project[1].projectName, project[1].testKind, project[1].uri)
